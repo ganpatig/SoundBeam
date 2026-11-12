@@ -12,8 +12,8 @@ android {
         applicationId = "dev.soundbeam"
         minSdk = 29 // AudioPlaybackCapture requires Android 10
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     buildTypes {
@@ -31,6 +31,9 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        resources.excludes += setOf("META-INF/versions/9/OSGI-INF/MANIFEST.MF", "META-INF/DEPENDENCIES")
+    }
 }
 
 dependencies {
@@ -40,4 +43,10 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    // Ed25519 / X25519 / ChaCha20-Poly1305 / HKDF for AirPlay 2 pairing
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+    // WebSocket client for AriaCast
+    implementation("org.java-websocket:Java-WebSocket:1.5.7")
+
+    testImplementation("junit:junit:4.13.2")
 }

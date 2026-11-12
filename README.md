@@ -2,22 +2,25 @@
 
 Free, open-source Android app that streams **whatever your phone is playing** (Spotify, YouTube Music, a browser, a game…) to speakers and receivers on your Wi-Fi. No account, no ads, no subscription, no root.
 
-> **Status: early alpha (v0.1).** The pipeline below works by design but has had limited device testing. Issues and PRs welcome.
+> **Status: alpha (v0.2).** Everything compiles and the protocol primitives are verified by unit tests (SRP-6a against pysrp, ALAC decoded bit-identically by ffmpeg, bplist/TLV8 round-trips), but most back-ends have **not yet been tried on real speakers**. Bug reports with logs are very welcome.
 
 ## What it does
 
 | Feature | Status |
 |---|---|
-| System-audio capture of other apps (Android 10+ `AudioPlaybackCapture`) | ✅ |
-| **DLNA / UPnP** receivers (smart TVs, AV receivers, Denon/Yamaha/Onkyo/Pioneer, many streamers) | ✅ discovery via SSDP, playback via AVTransport |
-| Multiple receivers at once, per-receiver volume | ✅ (no cross-device sync, see below) |
-| **HTTP stream** URL for VLC and similar players | ✅ `http://<phone-ip>:8765/stream.wav` |
-| **Save to file** (WAV) | ✅ |
-| Built-in **10-band equalizer** with presets, applied before every output | ✅ |
-| AirPlay / AirPlay 2 (HomePod, Apple TV, Roku) | 🔜 planned |
-| Google Cast / Chromecast | 🔜 planned |
-| Sonos, HEOS, Fire TV, AriaCast, Samsung Multiroom | 🔜 planned |
-| Cover art / metadata | 🔜 planned |
+| System-audio capture of other apps (Android 10+) | ✅ |
+| **AirPlay 2** (HomePod incl. stereo pairs, AirPlay 2 speakers, Roku, Sonos AP2): transient pairing, PIN pairing for Apple TV, encrypted control + audio | ✅ written, unit-tested, not yet tried on hardware |
+| **AirPlay 1 / RAOP** (AirPort Express, older receivers), lossless ALAC | ✅ written, ALAC verified with ffmpeg |
+| AirPlay multiroom sync (shared RTP/NTP timeline) | ✅ |
+| **Chromecast / Google Cast** (Cast v2, Default Media Receiver, AAC live stream) | ✅ written, not yet tried on hardware |
+| **Sonos** (UPnP radio stream + ICY titles) | ✅ written, not yet tried on hardware |
+| **HEOS** (Denon/Marantz, HEOS CLI `play_stream`) | ✅ written, not yet tried on hardware |
+| **DLNA / UPnP** renderers (WAV) | ✅ |
+| **AriaCast** (Music Assistant AriaCast Receiver, AriaCast servers) | ✅ written per the published spec |
+| **Fire TV / Android TV** via the bundled **SoundBeam Receiver** app (AriaCast receiver, TV launcher, starts on boot) | ✅ written, not yet tried on hardware |
+| Add/remove receivers while playing, per-receiver volume/mute and sync delay, AirPlay latency setting | ✅ |
+| Cover art & metadata (notification access): AirPlay DMAP/artwork/progress, Cast/DLNA at start, Sonos/VLC via ICY, AriaCast live | ✅ |
+| HTTP stream (`/stream.wav`, `/stream.aac`), save to WAV, 10-band EQ | ✅ |
 
 Not every app allows its audio to be captured: apps that opt out of Android's playback capture (or play DRM-protected audio) come through silent. That is an Android restriction and applies to any app using this API.
 
@@ -38,14 +41,13 @@ DLNA renderers buffer several seconds, so expect a few seconds of latency. Mixed
 
 ## Build
 
-Requires JDK 17 and the Android SDK (API 35).
+Requires JDK 17 and the Android SDK (API 35). Two APKs are built: `app` (the sender, Android 10+) and `receiver` (SoundBeam Receiver for Fire TV / Android TV, Android 5.1+).
 
 ```bash
-gradle wrapper --gradle-version 8.10.2   # once, or just open the folder in Android Studio
-./gradlew assembleDebug
+./gradlew assembleDebug testDebugUnitTest
 ```
 
-The APK lands in `app/build/outputs/apk/debug/`. GitHub Actions builds it on every push (see `.github/workflows/build.yml`).
+APKs land in `app/build/outputs/apk/debug/` and `receiver/build/outputs/apk/debug/`. GitHub Actions builds it on every push (see `.github/workflows/build.yml`).
 
 ## Using it
 
@@ -55,7 +57,7 @@ The APK lands in `app/build/outputs/apk/debug/`. GitHub Actions builds it on eve
 
 ## Clean-room statement
 
-SoundBeam is an independent implementation written from public documentation: the UPnP Device Architecture and AV specs, the Android `AudioPlaybackCapture` docs, and the feature list published on the AirMusic website. It contains no code, assets, or text from AirMusic or any decompiled app, and is not affiliated with it. "AirPlay", "Sonos", "Chromecast", "DLNA" etc. are trademarks of their owners and are used only to describe compatibility.
+SoundBeam is an independent implementation written from public documentation: the UPnP/DLNA specs, the HEOS CLI spec, the AriaCast protocol spec, the Google Cast v2 wire format, the Android `AudioPlaybackCapture` docs, protocol behaviour documented by open-source projects (owntone, shairport-sync, airplay2-receiver - read for protocol facts only, no code copied) and the feature list on the AirMusic website. It contains no code, assets, or text from AirMusic or any decompiled app, and is not affiliated with it. "AirPlay", "Sonos", "Chromecast", "DLNA" etc. are trademarks of their owners and are used only to describe compatibility.
 
 ## Contributing
 

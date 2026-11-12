@@ -15,29 +15,18 @@ import android.media.AudioRecord
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
-import android.os.Environment
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import dev.soundbeam.audio.AudioSink
 import dev.soundbeam.audio.CHANNELS
 import dev.soundbeam.audio.SAMPLE_RATE
-import dev.soundbeam.audio.WavFileSink
-import dev.soundbeam.net.HttpStreamServer
-import dev.soundbeam.net.Renderer
-import dev.soundbeam.net.Upnp
-import dev.soundbeam.net.localIpAddress
-import kotlinx.coroutines.launch
-import java.io.File
+import dev.soundbeam.core.StreamSession
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * Foreground service that captures the device's playback audio (Android 10+ AudioPlaybackCapture),
- * runs it through the equalizer and fans it out to the enabled outputs.
+ * runs it through the equalizer and hands it to the [StreamSession].
  */
 class CaptureService : Service() {
 
@@ -45,10 +34,6 @@ class CaptureService : Service() {
     private var record: AudioRecord? = null
     private var thread: Thread? = null
     @Volatile private var running = false
-
-    private var http: HttpStreamServer? = null
-    private var fileSink: WavFileSink? = null
-    private var activeRenderers: List<Renderer> = emptyList()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -112,56 +97,27 @@ class CaptureService : Service() {
                 .build()
             record = rec
 
-            val sinks = mutableListOf<AudioSink>()
-            val wantHttp = Engine.httpEnabled.value
-            val chosen = Engine.renderers.value.filter { it.id in Engine.selected.value }
-            if (wantHttp || chosen.isNotEmpty()) {
-                val server = HttpStreamServer()
-                val port = server.start()
-                http = server
-                sinks.add(server)
-                val ip = localIpAddress(this) ?: "localhost"
-                val url = "http://$ip:$port/stream.wav"
-                Engine.streamUrl.value = if (wantHttp) url else null
-                activeRenderers = chosen
-                beginRenderers(chosen, url)
-            }
-            if (Engine.saveEnabled.value) {
-                val dir = getExternalFilesDir(Environment.DIRECTORY_MUSIC) ?: filesDir
-                dir.mkdirs()
-                val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-                val sink = WavFileSink(File(dir, "soundbeam-$stamp.wav"))
-                fileSink = sink
-                sinks.add(sink)
-                Engine.status.value = "Saving to ${sink.file.absolutePath}"
-            }
-
+            val session = StreamSession(applicationContext)
+            session.start()
+            Engine.session = session
             running = true
             Engine.running.value = true
-            if (chosen.isEmpty() && !wantHttp && !Engine.saveEnabled.value) {
-                Engine.status.value = "Capturing, but no output is enabled"
+            if (Engine.selected.value.isEmpty() && !Engine.httpEnabled.value && !Engine.saveEnabled.value) {
+                Engine.status.value = "Capturing - tick a receiver to start playing on it"
             }
             rec.startRecording()
-            thread = Thread({ captureLoop(rec, sinks) }, "soundbeam-capture").also { it.start() }
+            thread = Thread({ captureLoop(rec, session) }, "soundbeam-capture").also {
+                it.priority = Thread.MAX_PRIORITY
+                it.start()
+            }
         } catch (e: Exception) {
             fail("Could not start capture: ${e.message}")
         }
     }
 
-    private fun beginRenderers(renderers: List<Renderer>, url: String) {
-        Engine.scope.launch {
-            for (r in renderers) {
-                try {
-                    Upnp.setUriAndPlay(r, url, "SoundBeam")
-                } catch (e: Exception) {
-                    Engine.status.value = "${r.name}: ${e.message}"
-                }
-            }
-        }
-    }
-
-    private fun captureLoop(rec: AudioRecord, sinks: List<AudioSink>) {
-        val shorts = ShortArray(2048 * CHANNELS)
+    private fun captureLoop(rec: AudioRecord, session: StreamSession) {
+        // 1024 frames (~23 ms) per block keeps latency and per-packet jitter low
+        val shorts = ShortArray(1024 * CHANNELS)
         val bytes = ByteArray(shorts.size * 2)
         val sb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
         while (running) {
@@ -173,11 +129,9 @@ class CaptureService : Service() {
             Engine.equalizer.process(shorts, n)
             sb.clear()
             sb.put(shorts, 0, n)
-            for (s in sinks) {
-                try {
-                    s.write(bytes, n * 2)
-                } catch (_: Exception) {
-                }
+            try {
+                session.onPcm(shorts, n, bytes)
+            } catch (_: Exception) {
             }
         }
     }
@@ -201,22 +155,11 @@ class CaptureService : Service() {
         try { projection?.stop() } catch (_: Exception) {}
         projection = null
 
-        val renderers = activeRenderers
-        activeRenderers = emptyList()
-        if (renderers.isNotEmpty()) {
-            Engine.scope.launch {
-                for (r in renderers) {
-                    try { Upnp.stop(r) } catch (_: Exception) {}
-                }
-            }
+        Engine.session?.let { s ->
+            Engine.session = null
+            runCatching { s.stop() }
         }
-        http?.stop()
-        http = null
-        try { fileSink?.stop() } catch (_: Exception) {}
-        fileSink = null
-
         Engine.running.value = false
-        Engine.streamUrl.value = null
         if (wasRunning) Engine.status.value = "Stopped"
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()

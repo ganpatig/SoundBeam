@@ -17,47 +17,68 @@ import java.net.SocketTimeoutException
 import java.net.URL
 import javax.xml.parsers.DocumentBuilderFactory
 
-/** A UPnP/DLNA MediaRenderer on the local network. */
+/** A UPnP device with an AVTransport service (DLNA renderer, Sonos player, HEOS speaker...). */
 data class Renderer(
     val id: String,
     val name: String,
+    val host: String,
+    val manufacturer: String,
+    val model: String,
     val avTransportUrl: String,
     val avTransportType: String,
     val renderingControlUrl: String?,
     val renderingControlType: String?,
-)
+) {
+    val isSonos get() = manufacturer.contains("Sonos", ignoreCase = true)
+}
 
-/** Finds DLNA/UPnP media renderers via SSDP multicast. */
+data class SsdpResult(val renderers: List<Renderer>, val heosHosts: List<String>)
+
+/** Finds UPnP renderers, Sonos players and HEOS hubs via SSDP multicast. */
 object SsdpScanner {
-    private const val ST = "urn:schemas-upnp-org:device:MediaRenderer:1"
+    private val TARGETS = listOf(
+        "urn:schemas-upnp-org:device:MediaRenderer:1",
+        "urn:schemas-upnp-org:device:ZonePlayer:1",
+        "urn:schemas-denon-com:device:ACT-Denon:1",
+    )
 
-    suspend fun scan(ctx: Context, timeoutMs: Int = 3500): List<Renderer> = withContext(Dispatchers.IO) {
+    suspend fun scan(ctx: Context, timeoutMs: Int = 3500): SsdpResult = withContext(Dispatchers.IO) {
         val wifi = ctx.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         val lock = wifi.createMulticastLock("soundbeam-ssdp").apply {
             setReferenceCounted(false)
             acquire()
         }
         val locations = linkedSetOf<String>()
+        val heos = linkedSetOf<String>()
         try {
             DatagramSocket().use { sock ->
-                sock.soTimeout = 500
-                val msg = ("M-SEARCH * HTTP/1.1\r\n" +
-                    "HOST: 239.255.255.250:1900\r\n" +
-                    "MAN: \"ssdp:discover\"\r\n" +
-                    "MX: 2\r\n" +
-                    "ST: $ST\r\n\r\n").toByteArray()
+                sock.soTimeout = 400
                 val group = InetAddress.getByName("239.255.255.250")
-                repeat(2) { sock.send(DatagramPacket(msg, msg.size, group, 1900)) }
+                repeat(2) {
+                    for (st in TARGETS) {
+                        val msg = ("M-SEARCH * HTTP/1.1\r\n" +
+                            "HOST: 239.255.255.250:1900\r\n" +
+                            "MAN: \"ssdp:discover\"\r\n" +
+                            "MX: 2\r\n" +
+                            "ST: $st\r\n\r\n").toByteArray()
+                        sock.send(DatagramPacket(msg, msg.size, group, 1900))
+                    }
+                }
                 val end = System.currentTimeMillis() + timeoutMs
-                val buf = ByteArray(2048)
+                val buf = ByteArray(4096)
                 while (System.currentTimeMillis() < end) {
                     try {
                         val p = DatagramPacket(buf, buf.size)
                         sock.receive(p)
-                        String(p.data, 0, p.length).lineSequence()
-                            .firstOrNull { it.startsWith("LOCATION:", ignoreCase = true) }
-                            ?.substringAfter(":")?.trim()
-                            ?.let { locations.add(it) }
+                        val headers = String(p.data, 0, p.length).lineSequence()
+                            .mapNotNull { l -> l.indexOf(':').takeIf { it > 0 }?.let { l.substring(0, it).trim().uppercase() to l.substring(it + 1).trim() } }
+                            .toMap()
+                        val st = headers["ST"].orEmpty()
+                        if (st.contains("ACT-Denon", ignoreCase = true)) {
+                            p.address.hostAddress?.let { heos.add(it) }
+                        } else {
+                            headers["LOCATION"]?.let { locations.add(it) }
+                        }
                     } catch (_: SocketTimeoutException) {
                     }
                 }
@@ -65,7 +86,8 @@ object SsdpScanner {
         } finally {
             if (lock.isHeld) lock.release()
         }
-        locations.mapNotNull { describe(it) }.distinctBy { it.id }.sortedBy { it.name.lowercase() }
+        val renderers = locations.mapNotNull { describe(it) }.distinctBy { it.id }
+        SsdpResult(renderers, heos.toList())
     }
 
     private fun describe(location: String): Renderer? = try {
@@ -73,11 +95,14 @@ object SsdpScanner {
         conn.connectTimeout = 3000
         conn.readTimeout = 3000
         val doc = conn.inputStream.use {
-            DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(it)
+            val f = DocumentBuilderFactory.newInstance()
+            runCatching { f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
+            f.newDocumentBuilder().parse(it)
         }
         conn.disconnect()
-        val name = doc.getElementsByTagName("friendlyName").item(0)?.textContent?.trim() ?: "Unknown device"
-        val udn = doc.getElementsByTagName("UDN").item(0)?.textContent?.trim() ?: location
+        fun first(tag: String) = doc.getElementsByTagName(tag).item(0)?.textContent?.trim()
+        val name = first("friendlyName") ?: "Unknown device"
+        val udn = first("UDN") ?: location
         var av: Pair<String, String>? = null
         var rc: Pair<String, String>? = null
         val services = doc.getElementsByTagName("service")
@@ -86,10 +111,24 @@ object SsdpScanner {
             val type = el.getElementsByTagName("serviceType").item(0)?.textContent?.trim() ?: continue
             val ctl = el.getElementsByTagName("controlURL").item(0)?.textContent?.trim() ?: continue
             val abs = URL(URL(location), ctl).toString()
-            if (type.contains(":AVTransport:")) av = abs to type
-            if (type.contains(":RenderingControl:")) rc = abs to type
+            if (type.contains(":AVTransport:") && av == null) av = abs to type
+            if (type.contains(":RenderingControl:") && rc == null) rc = abs to type
         }
-        if (av == null) null else Renderer(udn, name, av.first, av.second, rc?.first, rc?.second)
+        if (av == null) {
+            null
+        } else {
+            Renderer(
+                id = udn,
+                name = name,
+                host = URL(location).host,
+                manufacturer = first("manufacturer").orEmpty(),
+                model = first("modelName").orEmpty(),
+                avTransportUrl = av.first,
+                avTransportType = av.second,
+                renderingControlUrl = rc?.first,
+                renderingControlType = rc?.second,
+            )
+        }
     } catch (e: Exception) {
         null
     }
@@ -97,18 +136,26 @@ object SsdpScanner {
 
 /** Minimal UPnP AVTransport / RenderingControl client. */
 object Upnp {
-    fun setUriAndPlay(r: Renderer, streamUrl: String, title: String) {
-        val didl = "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" " +
-            "xmlns:dc=\"http://purl.org/dc/elements/1.1/\" " +
-            "xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\">" +
-            "<item id=\"0\" parentID=\"-1\" restricted=\"1\"><dc:title>${esc(title)}</dc:title>" +
-            "<upnp:class>object.item.audioItem.musicTrack</upnp:class>" +
-            "<res protocolInfo=\"http-get:*:audio/wav:*\">${esc(streamUrl)}</res></item></DIDL-Lite>"
+    fun setUriAndPlay(r: Renderer, uri: String, metadata: String) {
         soap(
             r.avTransportUrl, r.avTransportType, "SetAVTransportURI",
-            listOf("InstanceID" to "0", "CurrentURI" to streamUrl, "CurrentURIMetaData" to didl),
+            listOf("InstanceID" to "0", "CurrentURI" to uri, "CurrentURIMetaData" to metadata),
         )
         soap(r.avTransportUrl, r.avTransportType, "Play", listOf("InstanceID" to "0", "Speed" to "1"))
+    }
+
+    fun didl(title: String, artist: String?, url: String, mime: String, artUrl: String?, sonosRadio: Boolean): String {
+        val cls = if (sonosRadio) "object.item.audioItem.audioBroadcast" else "object.item.audioItem.musicTrack"
+        return "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" " +
+            "xmlns:dc=\"http://purl.org/dc/elements/1.1/\" " +
+            "xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\" " +
+            "xmlns:r=\"urn:schemas-rinconnetworks-com:metadata-1-0/\">" +
+            "<item id=\"soundbeam\" parentID=\"0\" restricted=\"1\"><dc:title>${esc(title)}</dc:title>" +
+            (artist?.let { "<dc:creator>${esc(it)}</dc:creator><upnp:artist>${esc(it)}</upnp:artist>" } ?: "") +
+            (artUrl?.let { "<upnp:albumArtURI>${esc(it)}</upnp:albumArtURI>" } ?: "") +
+            "<upnp:class>$cls</upnp:class>" +
+            (if (sonosRadio) "<desc id=\"cdudn\" nameSpace=\"urn:schemas-rinconnetworks-com:metadata-1-0/\">SA_RINCON65031_</desc>" else "") +
+            "<res protocolInfo=\"http-get:*:$mime:*\">${esc(url)}</res></item></DIDL-Lite>"
     }
 
     fun stop(r: Renderer) {
@@ -143,13 +190,17 @@ object Upnp {
             c.setRequestProperty("SOAPACTION", "\"$serviceType#$action\"")
             c.outputStream.use { it.write(body.toByteArray()) }
             val code = c.responseCode
-            if (code !in 200..299) throw IOException("$action failed (HTTP $code)")
+            if (code !in 200..299) {
+                val err = runCatching { c.errorStream?.bufferedReader()?.readText() }.getOrNull().orEmpty()
+                val upnpCode = Regex("<errorCode>(\\d+)</errorCode>").find(err)?.groupValues?.get(1)
+                throw IOException("$action failed (HTTP $code${upnpCode?.let { ", UPnP error $it" } ?: ""})")
+            }
         } finally {
             c.disconnect()
         }
     }
 
-    private fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         .replace("\"", "&quot;").replace("'", "&apos;")
 }
 
