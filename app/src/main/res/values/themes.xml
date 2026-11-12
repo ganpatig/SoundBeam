@@ -1,0 +1,4 @@
+<resources>
+    <style name="Theme.SoundBeam" parent="android:Theme.Material.NoActionBar" />
+    <color name="ic_background">#1B5E8C</color>
+</resources>
