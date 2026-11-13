@@ -4,6 +4,17 @@ Free, open-source Android app that streams **whatever your phone is playing** (S
 
 > **Status: alpha (v0.2).** Everything compiles and the protocol primitives are verified by unit tests (SRP-6a against pysrp, ALAC decoded bit-identically by ffmpeg, bplist/TLV8 round-trips), but most back-ends have **not yet been tried on real speakers**. Bug reports with logs are very welcome.
 
+## ⬇️ Download
+
+**[Download the latest version →](https://github.com/ganpatig/SoundBeam/releases/latest)**
+
+On that page, under **Assets**, tap:
+
+* **`SoundBeam-x.y.z.apk`** – the phone app (Android 10 or newer). This is the one most people want.
+* **`SoundBeam-Receiver-x.y.z.apk`** – optional, install on a **Fire TV / Android TV** to use it as a speaker.
+
+Open the downloaded file on your phone to install it (Android will ask you to allow installs from your browser or file manager the first time).
+
 ## What it does
 
 | Feature | Status |

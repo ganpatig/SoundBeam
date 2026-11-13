@@ -16,9 +16,23 @@ android {
         versionName = "0.2.0"
     }
 
+    // Release signing: set SOUNDBEAM_KEYSTORE (path) and SOUNDBEAM_KEYSTORE_PASSWORD.
+    val keystore = System.getenv("SOUNDBEAM_KEYSTORE")
+    signingConfigs {
+        create("release") {
+            if (keystore != null) {
+                storeFile = file(keystore)
+                storePassword = System.getenv("SOUNDBEAM_KEYSTORE_PASSWORD")
+                keyAlias = "soundbeam"
+                keyPassword = System.getenv("SOUNDBEAM_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (keystore != null) signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
