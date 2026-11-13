@@ -96,6 +96,7 @@ class StreamSession(private val ctx: Context) : StreamEnv {
                 Protocol.HEOS -> HeosOutput(d)
                 Protocol.DLNA -> DlnaOutput(d)
                 Protocol.ARIACAST, Protocol.RECEIVER -> AriaCastOutput(d)
+                Protocol.LIVE -> dev.soundbeam.outputs.LiveOutput(d)
             }
         } catch (e: Exception) {
             Engine.setOutputState(d.id, OutputState.Failed(e.message ?: "unsupported"))

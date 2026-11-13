@@ -26,13 +26,13 @@ object Speakers {
     /** Which connection we use by default when a speaker offers several. */
     private val DEFAULT_ORDER = listOf(
         Protocol.AIRPLAY2, Protocol.CAST, Protocol.SONOS, Protocol.HEOS,
-        Protocol.AIRPLAY, Protocol.RECEIVER, Protocol.ARIACAST, Protocol.DLNA,
+        Protocol.AIRPLAY, Protocol.RECEIVER, Protocol.ARIACAST, Protocol.DLNA, Protocol.LIVE,
     )
 
     /** Which discovery source tends to have the nicest human name. */
     private val NAME_ORDER = listOf(
         Protocol.AIRPLAY2, Protocol.AIRPLAY, Protocol.CAST, Protocol.HEOS,
-        Protocol.RECEIVER, Protocol.ARIACAST, Protocol.SONOS, Protocol.DLNA,
+        Protocol.RECEIVER, Protocol.ARIACAST, Protocol.SONOS, Protocol.DLNA, Protocol.LIVE,
     )
 
     fun groupKey(d: Device): String =
@@ -62,6 +62,7 @@ object Speakers {
         Protocol.DLNA -> "DLNA"
         Protocol.ARIACAST -> "AriaCast"
         Protocol.RECEIVER -> "SoundBeam Receiver"
+        Protocol.LIVE -> "Friend's phone"
     }
 
     fun connectionHelp(p: Protocol): String = when (p) {
@@ -73,5 +74,6 @@ object Speakers {
         Protocol.DLNA -> "Works with many smart TVs and AV receivers. Usually a few seconds behind."
         Protocol.ARIACAST -> "For Music Assistant and other AriaCast receivers."
         Protocol.RECEIVER -> "A Fire TV or Android TV running the free SoundBeam Receiver app."
+        Protocol.LIVE -> "A phone in \"Listen to a friend\" mode. Lowest delay - made for watching videos together."
     }
 }

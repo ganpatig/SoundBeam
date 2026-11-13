@@ -51,10 +51,13 @@ class AppActions(
     val stopStreaming: () -> Unit,
     val openNotificationAccess: () -> Unit,
     val openUrl: (String) -> Unit,
+    val startListening: () -> Unit = {},
+    val stopListening: () -> Unit = {},
 )
 
 enum class Tab(val label: String, val icon: Int) {
     SPEAKERS("Speakers", R.drawable.ic_speaker),
+    TOGETHER("Together", R.drawable.ic_headphones),
     SOUND("Sound", R.drawable.ic_tune),
     MORE("More", R.drawable.ic_more),
 }
@@ -104,6 +107,7 @@ fun SoundBeamApp(actions: AppActions, initialTab: Tab = Tab.SPEAKERS) {
         Box(Modifier.padding(padding).fillMaxSize()) {
             when (tab) {
                 Tab.SPEAKERS -> SpeakersScreen(actions)
+                Tab.TOGETHER -> TogetherScreen(actions, onPlay = play)
                 Tab.SOUND -> SoundScreen()
                 Tab.MORE -> MoreScreen(actions)
             }

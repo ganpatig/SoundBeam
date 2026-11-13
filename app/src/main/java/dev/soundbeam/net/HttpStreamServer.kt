@@ -32,7 +32,7 @@ class HttpStreamServer(
     private class Chunk(val at: Long, val data: ByteArray)
 
     private class Client(val kind: Kind, val host: String) {
-        val queue = ArrayBlockingQueue<Chunk>(600)
+        val queue = ArrayBlockingQueue<Chunk>(2400) // ~14 s of small capture blocks
     }
 
     private val clients = CopyOnWriteArrayList<Client>()

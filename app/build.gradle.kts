@@ -12,8 +12,8 @@ android {
         applicationId = "dev.soundbeam"
         minSdk = 29 // AudioPlaybackCapture requires Android 10
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.3.0"
+        versionCode = 5
+        versionName = "0.4.0"
     }
 
     // Release signing: set SOUNDBEAM_KEYSTORE (path) and SOUNDBEAM_KEYSTORE_PASSWORD.

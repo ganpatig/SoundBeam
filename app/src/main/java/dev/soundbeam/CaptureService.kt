@@ -116,8 +116,8 @@ class CaptureService : Service() {
     }
 
     private fun captureLoop(rec: AudioRecord, session: StreamSession) {
-        // 1024 frames (~23 ms) per block keeps latency and per-packet jitter low
-        val shorts = ShortArray(1024 * CHANNELS)
+        // 256 frames (~6 ms) per read: the smallest useful block, so Watch Together adds no wait here
+        val shorts = ShortArray(256 * CHANNELS)
         val bytes = ByteArray(shorts.size * 2)
         val sb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
         while (running) {

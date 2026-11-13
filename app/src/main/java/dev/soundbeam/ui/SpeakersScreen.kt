@@ -75,7 +75,7 @@ fun SpeakersScreen(actions: AppActions) {
     val via by Engine.via.collectAsState()
     val welcomeSeen by Engine.welcomeSeen.collectAsState()
     val running by Engine.running.collectAsState()
-    val groups = remember(devices, via) { Speakers.group(devices, via) }
+    val groups = remember(devices, via) { Speakers.group(devices.filter { it.protocol != Protocol.LIVE }, via) }
     var sheetFor by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) { if (Engine.devices.value.isEmpty()) Engine.scan(ctx) }

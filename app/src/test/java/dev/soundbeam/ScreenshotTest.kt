@@ -8,6 +8,7 @@ import android.graphics.Shader
 import android.os.SystemClock
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -54,6 +55,7 @@ class ScreenshotTest {
     @Before
     fun setUp() {
         Engine.init(ApplicationProvider.getApplicationContext())
+        Engine.phoneName = "Priya's Pixel 9"
         Engine.devices.value = listOf(livingRoom, kitchenAp, kitchenSonos, tv, denon, fire)
         Engine.selected.value = emptySet()
         Engine.running.value = false
@@ -135,5 +137,29 @@ class ScreenshotTest {
         p.color = 0x66FFFFFF
         c.drawCircle(150f, 150f, 80f, p)
         return ByteArrayOutputStream().also { bmp.compress(Bitmap.CompressFormat.JPEG, 90, it) }.toByteArray()
+    }
+
+    @Test
+    fun s7_togetherShare() {
+        dev.soundbeam.live.DualAudio.override = dev.soundbeam.live.DualAudio.Kind.SAMSUNG
+        dev.soundbeam.live.DualAudio.overrideHeadphones = listOf("Galaxy Buds3 Pro", "Sony WH-1000XM5")
+        val friend = Device("live:10.0.0.42", "Priya's Pixel 9", Protocol.LIVE, "10.0.0.42", 12890, model = "Listening")
+        Engine.devices.value = Engine.devices.value + friend
+        Engine.selected.value = setOf(friend.id)
+        shoot("7-together", Tab.TOGETHER)
+    }
+
+    @Test
+    fun s8_togetherListen() {
+        dev.soundbeam.live.DualAudio.override = dev.soundbeam.live.DualAudio.Kind.NONE
+        dev.soundbeam.live.DualAudio.overrideHeadphones = emptyList()
+        dev.soundbeam.live.LiveReceiverState.listening.value = true
+        dev.soundbeam.live.LiveReceiverState.sender.value = "Ganpati's Galaxy S24"
+        dev.soundbeam.live.LiveReceiverState.delayMs.value = 58
+        shoot("8-together-listening", Tab.TOGETHER) {
+            compose.onNodeWithText("I'm listening").performClick()
+        }
+        dev.soundbeam.live.LiveReceiverState.listening.value = false
+        dev.soundbeam.live.LiveReceiverState.sender.value = null
     }
 }

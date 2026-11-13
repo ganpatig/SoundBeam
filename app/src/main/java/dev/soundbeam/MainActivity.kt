@@ -15,6 +15,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import dev.soundbeam.live.LiveReceiverService
 import dev.soundbeam.ui.AppActions
 import dev.soundbeam.ui.SoundBeamApp
 import dev.soundbeam.ui.SoundBeamTheme
@@ -61,6 +62,12 @@ class MainActivity : ComponentActivity() {
                         },
                         openUrl = { url ->
                             runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                        },
+                        startListening = {
+                            ctx.startForegroundService(Intent(ctx, LiveReceiverService::class.java))
+                        },
+                        stopListening = {
+                            ctx.startService(Intent(ctx, LiveReceiverService::class.java).setAction(LiveReceiverService.ACTION_STOP))
                         },
                     )
                 }

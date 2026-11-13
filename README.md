@@ -2,7 +2,7 @@
 
 Free, open-source Android app that streams **whatever your phone is playing** (Spotify, YouTube Music, a browser, a game…) to speakers and receivers on your Wi-Fi. No account, no ads, no subscription, no root.
 
-> **Status: alpha (v0.3).** Everything compiles and the protocol primitives are verified by unit tests (SRP-6a against pysrp, ALAC decoded bit-identically by ffmpeg, bplist/TLV8 round-trips), but most back-ends have **not yet been tried on real speakers**. Bug reports with logs are very welcome.
+> **Status: alpha (v0.4).** Everything compiles and the protocol primitives are verified by unit tests (SRP-6a against pysrp, ALAC decoded bit-identically by ffmpeg, bplist/TLV8 round-trips), but most back-ends have **not yet been tried on real speakers**. Bug reports with logs are very welcome.
 
 ## ⬇️ Download
 
@@ -22,12 +22,21 @@ Open the downloaded file on your phone to install it (Android will ask you to al
 | <img src="docs/screenshots/1-welcome.png" width="240"> | <img src="docs/screenshots/2-playing.png" width="240"> | <img src="docs/screenshots/3-speaker-settings.png" width="240"> |
 | **Sound (equalizer)** | **Extras & help** | **Dark mode** |
 | <img src="docs/screenshots/4-sound.png" width="240"> | <img src="docs/screenshots/5-more.png" width="240"> | <img src="docs/screenshots/6-dark.png" width="240"> |
+| **Watch together** | **Listening on a friend's phone** | |
+| <img src="docs/screenshots/7-together.png" width="240"> | <img src="docs/screenshots/8-together-listening.png" width="240"> | |
 
 ## Is SoundBeam for you?
 
 **Yes, if you** have AirPlay, Chromecast, Sonos, HEOS or DLNA speakers (or a smart TV / Fire TV) and an Android phone, and want to play sound from *any* app on them – including apps that can't cast by themselves – in one room or several at once. Free, no account, no ads.
 
 **Probably not, if you** only use Bluetooth speakers (Android already does that), need perfect lip-sync for video (network speakers add a short delay), or only use one app that already casts to your speaker (like Spotify Connect).
+
+## Watch together
+
+Two people, one movie, each with their own headphones – on a plane, train or sofa. The **Together** tab picks the lowest-delay way your phones support:
+
+1. **Two headphones on one phone** – Samsung *Dual Audio* or Android *Audio sharing* (LE Audio). The phone does it itself with no extra delay; SoundBeam detects which one you have and opens the right screen in one tap.
+2. **Your friend's phone** – works on any Android phone with any headphones. SoundBeam streams the movie's sound to your friend's phone with **SoundBeam Live**, a tiny UDP protocol made for this: raw audio in ~6 ms packets and a self-adjusting ~40 ms buffer (AirPlay, Chromecast and DLNA buffer whole seconds). Works over Wi-Fi or your phone's hotspot.
 
 ## What it does
 

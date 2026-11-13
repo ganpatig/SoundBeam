@@ -53,7 +53,13 @@ object Engine {
     val streamUrls = MutableStateFlow<List<String>>(emptyList())
     val status = MutableStateFlow("")
     val eqGains = MutableStateFlow(List(10) { 0f })
-    val airplayLatencyMs = MutableStateFlow(2000)
+    /** AirPlay buffer. 0.7 s is a good balance on home Wi-Fi (was 2 s in 0.2.x). */
+    val airplayLatencyMs = MutableStateFlow(DEFAULT_AIRPLAY_LATENCY)
+    const val DEFAULT_AIRPLAY_LATENCY = 700
+
+    /** This phone's name as the user set it (shown to friends in Watch Together). */
+    var phoneName: String = android.os.Build.MODEL
+        internal set
 
     // now playing
     val nowPlaying = MutableStateFlow<NowPlaying?>(null)
@@ -75,7 +81,10 @@ object Engine {
         prefs = ctx.getSharedPreferences("soundbeam", Context.MODE_PRIVATE)
         httpEnabled.value = prefs.getBoolean("http", false)
         saveEnabled.value = prefs.getBoolean("save", false)
-        airplayLatencyMs.value = prefs.getInt("airplayLatency", 2000)
+        airplayLatencyMs.value = prefs.getInt("airplayLatencyMs", DEFAULT_AIRPLAY_LATENCY)
+        phoneName = runCatching {
+            android.provider.Settings.Global.getString(ctx.contentResolver, "device_name")
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: android.os.Build.MODEL
         selected.value = prefs.getStringSet("selected", emptySet())!!.toSet()
         volumes.value = readIntMap("volumes")
         delays.value = readIntMap("delays")
@@ -159,7 +168,7 @@ object Engine {
         prefs.edit().putBoolean("captureExplained", true).apply()
     }
 
-    fun volumeFor(id: String) = volumes.value[id] ?: 50
+    fun volumeFor(id: String) = volumes.value[id] ?: if (id.startsWith("live:")) 100 else 50
 
     fun delayFor(id: String) = delays.value[id] ?: 0
 
@@ -200,7 +209,7 @@ object Engine {
 
     fun setAirplayLatency(ms: Int) {
         airplayLatencyMs.value = ms
-        prefs.edit().putInt("airplayLatency", ms).apply()
+        prefs.edit().putInt("airplayLatencyMs", ms).apply()
     }
 
     fun setEq(gains: List<Float>) {

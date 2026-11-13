@@ -29,6 +29,11 @@ object Discovery {
         val ssdp = async { runCatching { SsdpScanner.scan(ctx) }.getOrNull() }
         val mdns = async { runCatching { Mdns.browse(ctx, listOf(AIRPLAY, RAOP, CAST, ARIACAST)) }.getOrDefault(emptyList()) }
         val aria = async { runCatching { ariaCastBroadcast(ctx) }.getOrDefault(emptyList()) }
+        val live = async(Dispatchers.IO) {
+            runCatching { dev.soundbeam.live.LiveProtocol.discover() }.getOrDefault(emptyList()).map {
+                Device("live:${it.host}", it.name, Protocol.LIVE, it.host, it.port, model = "Listening")
+            }
+        }
 
         val devices = ArrayList<Device>()
         val services = mdns.await()
@@ -36,6 +41,7 @@ object Discovery {
         devices += cast(services)
         devices += services.filter { it.type == ARIACAST }.map { ariaDevice(it.instance, it.host, it.port, it.txt) }
         devices += aria.await()
+        devices += live.await()
 
         ssdp.await()?.let { res ->
             for (r in res.renderers) {

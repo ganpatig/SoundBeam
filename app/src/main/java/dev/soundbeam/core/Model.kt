@@ -11,6 +11,7 @@ enum class Protocol(val label: String) {
     DLNA("DLNA"),
     ARIACAST("AriaCast"),
     RECEIVER("SoundBeam Receiver"),
+    LIVE("Friend's phone"),
 }
 
 /** A receiver found on the network. [id] is stable across scans so settings can be remembered. */

@@ -90,7 +90,7 @@ fun MoreScreen(actions: AppActions) {
                 value = lat,
                 onValueChange = { lat = (it / 100).toInt() * 100f },
                 onValueChangeFinished = { Engine.setAirplayLatency(lat.toInt()) },
-                valueRange = 500f..4000f,
+                valueRange = 300f..4000f,
             )
             Row {
                 Text("Quicker", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
