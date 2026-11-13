@@ -87,6 +87,8 @@ object Discovery {
     private fun airplay(services: List<MdnsService>): List<Device> {
         val out = ArrayList<Device>()
         val v2Macs = HashSet<String>()
+        val raopPorts = services.filter { it.type == RAOP }
+            .associate { it.instance.substringBefore('@').uppercase() to it.port }
         for (s in services.filter { it.type == AIRPLAY }) {
             val f = features(s.txt)
             val audio = f and (1L shl 9) != 0L
@@ -100,8 +102,8 @@ object Discovery {
                 protocol = Protocol.AIRPLAY2,
                 host = s.host,
                 port = s.port,
-                txt = s.txt,
-                model = s.txt["model"] ?: s.txt["manufacturer"],
+                txt = raopPorts[mac]?.let { s.txt + ("raopport" to it.toString()) } ?: s.txt,
+                model = listOfNotNull(s.txt["manufacturer"], s.txt["model"]).joinToString(" ").ifEmpty { null },
             )
         }
         for (s in services.filter { it.type == RAOP }) {

@@ -25,7 +25,9 @@ import kotlin.concurrent.thread
  */
 class AirPlayOutput(device: Device) : Output(device) {
 
-    private val v2 = device.protocol == Protocol.AIRPLAY2
+    private var v2 = device.protocol == Protocol.AIRPLAY2
+    private var step = "connect"
+    private var fallback = false
     private lateinit var rtsp: RtspConnection
     private lateinit var env: StreamEnv
     private lateinit var master: AirPlayMaster
@@ -49,12 +51,30 @@ class AirPlayOutput(device: Device) : Output(device) {
         this.env = env
         this.master = env.airplay
         address = InetAddress.getByName(device.host)
-        rtsp = openRtsp()
-        sessionUrl = "rtsp://${rtsp.localAddress}/$sessionId"
+        val raopPort = device.txt["raopport"]?.toIntOrNull()
 
-        if (v2) startV2() else startV1()
+        if (!v2) {
+            runStep { connect(device.port); startV1() }
+        } else {
+            try {
+                runStep { connect(device.port); startV2() }
+            } catch (e: Exception) {
+                // Some AirPlay 2 speakers (notably Sonos) stall on parts of the AirPlay 2 setup.
+                // Retry the same speaker with classic AirPlay 1, which they also accept.
+                if (stopped || raopPort == null || (e is PairingException && e.needsPin)) throw e
+                val first = e.message
+                resetSession()
+                v2 = false
+                fallback = true
+                try {
+                    runStep { connect(raopPort); startV1() }
+                } catch (e2: Exception) {
+                    throw IOException("AirPlay 2 ($first), AirPlay 1 (${e2.message})")
+                }
+            }
+        }
         if (stopped) return
-        sendVolume()
+        runCatching { sendVolume() }
         master.activate(this)
         active = true
         Engine.setOutputState(device.id, OutputState.Playing)
@@ -62,8 +82,38 @@ class AirPlayOutput(device: Device) : Output(device) {
         Engine.nowPlaying.value?.let { onMetadata(it) }
     }
 
-    private fun openRtsp(): RtspConnection {
-        val c = RtspConnection(device.host, device.port)
+    /** Runs [block], labelling any failure with the protocol step it happened in. */
+    private inline fun runStep(block: () -> Unit) {
+        try {
+            block()
+        } catch (e: PairingException) {
+            throw PairingException("$step: ${e.message}", e.needsPin)
+        } catch (e: Exception) {
+            val why = when (e) {
+                is java.net.SocketTimeoutException -> "no reply from the speaker"
+                else -> e.message ?: e.javaClass.simpleName
+            }
+            throw IOException("$step: $why", e)
+        }
+    }
+
+    private fun connect(port: Int) {
+        step = "connect"
+        rtsp = openRtsp(port)
+        sessionUrl = "rtsp://${rtsp.localAddress}/$sessionId"
+    }
+
+    private fun resetSession() {
+        if (::rtsp.isInitialized) rtsp.close()
+        dataSocket?.close()
+        dataSocket = null
+        dataPort = 0
+        remoteControlPort = 0
+        audioKey = null
+    }
+
+    private fun openRtsp(port: Int): RtspConnection {
+        val c = RtspConnection(device.host, port)
         c.connect()
         val clientId = Engine.airplayIdentity().pairingId
         c.commonHeaders["User-Agent"] = "AirPlay/381.13"
@@ -76,6 +126,7 @@ class AirPlayOutput(device: Device) : Output(device) {
     // ------------------------------------------------------------------------------ AirPlay 2
 
     private fun startV2() {
+        step = "GET /info"
         val info = rtsp.request("GET", "/info")
         val flags = if (info.ok) {
             ((runCatching { Bplist.decode(info.body) }.getOrNull() as? Map<*, *>)?.get("statusFlags") as? Long) ?: 0L
@@ -84,6 +135,7 @@ class AirPlayOutput(device: Device) : Output(device) {
         }
         val needsPin = flags and (FLAG_PIN or FLAG_PASSWORD or FLAG_ONE_TIME_PAIRING) != 0L
         val identity = Engine.airplayIdentity()
+        step = "pairing"
         val secret: ByteArray = if (needsPin) {
             pinPairAndVerify(identity)
         } else {
@@ -93,29 +145,38 @@ class AirPlayOutput(device: Device) : Output(device) {
                 if (!e.needsPin) throw e
                 // Reconnect: the receiver may have dropped the half-done transient attempt
                 rtsp.close()
-                rtsp = openRtsp()
+                rtsp = openRtsp(device.port)
                 pinPairAndVerify(identity)
             }
         }
         rtsp.enableEncryption(secret)
         audioKey = secret.copyOf(32)
 
+        // Sender description as iOS sends it; some receivers won't answer a bare request.
+        step = "SETUP session"
         val setupSession = rtsp.request(
             "SETUP", sessionUrl,
             Bplist.encode(
                 linkedMapOf(
                     "deviceID" to Engine.airplayDeviceIdColon(),
+                    "macAddress" to Engine.airplayDeviceIdColon(),
                     "sessionUUID" to UUID.randomUUID().toString().uppercase(),
+                    "groupUUID" to UUID.randomUUID().toString().uppercase(),
+                    "groupContainsGroupLeader" to false,
+                    "name" to "SoundBeam",
+                    "model" to "Android",
+                    "sourceVersion" to "366.0",
                     "timingPort" to master.timingPort,
                     "timingProtocol" to "NTP",
                 ),
             ),
             PLIST,
         )
-        if (!setupSession.ok) throw IOException("SETUP session failed (RTSP ${setupSession.status})")
+        if (!setupSession.ok) throw IOException("rejected (RTSP ${setupSession.status})")
 
+        step = "RECORD"
         val record = rtsp.request("RECORD", sessionUrl)
-        if (!record.ok) throw IOException("RECORD failed (RTSP ${record.status})")
+        if (!record.ok) throw IOException("rejected (RTSP ${record.status})")
 
         val latency = Engine.airplayLatencyMs.value.toLong() * SAMPLE_RATE / 1000
         val stream = linkedMapOf<String, Any?>(
@@ -133,10 +194,11 @@ class AirPlayOutput(device: Device) : Output(device) {
             "supportsDynamicStreamID" to false,
             "streamConnectionID" to sessionId,
         )
+        step = "SETUP stream"
         val setupStream = rtsp.request(
             "SETUP", sessionUrl, Bplist.encode(mapOf("streams" to listOf(stream))), PLIST,
         )
-        if (!setupStream.ok) throw IOException("SETUP stream failed (RTSP ${setupStream.status})")
+        if (!setupStream.ok) throw IOException("rejected (RTSP ${setupStream.status})")
         val resp = Bplist.decode(setupStream.body) as? Map<*, *>
         val s0 = (resp?.get("streams") as? List<*>)?.firstOrNull() as? Map<*, *>
         dataPort = (s0?.get("dataPort") as? Long)?.toInt() ?: 0
@@ -181,6 +243,13 @@ class AirPlayOutput(device: Device) : Output(device) {
     // ------------------------------------------------------------------------------ AirPlay 1
 
     private fun startV1() {
+        if (fallback || needsAuthSetup()) {
+            // Sonos and some AirPort firmware reject ANNOUNCE (403) unless auth-setup came first.
+            // We send the "no encryption" flag plus a Curve25519 public key and ignore the reply.
+            step = "auth-setup"
+            rtsp.request("POST", "/auth-setup", byteArrayOf(1) + Crypto.x25519KeyPair().public, "application/octet-stream")
+        }
+        step = "ANNOUNCE"
         val local = rtsp.localAddress
         val sdp = "v=0\r\n" +
             "o=iTunes $sessionId 0 IN IP4 $local\r\n" +
@@ -191,8 +260,9 @@ class AirPlayOutput(device: Device) : Output(device) {
             "a=rtpmap:96 AppleLossless\r\n" +
             "a=fmtp:96 352 0 16 40 10 14 2 255 0 0 44100\r\n"
         val announce = rtsp.request("ANNOUNCE", sessionUrl, sdp.toByteArray(), "application/sdp")
-        if (!announce.ok) throw IOException("ANNOUNCE failed (RTSP ${announce.status})")
+        if (!announce.ok) throw IOException("rejected (RTSP ${announce.status})")
 
+        step = "SETUP"
         val setup = rtsp.request(
             "SETUP", sessionUrl,
             headers = mapOf(
@@ -200,7 +270,7 @@ class AirPlayOutput(device: Device) : Output(device) {
                     "control_port=${master.controlPort};timing_port=${master.timingPort}",
             ),
         )
-        if (!setup.ok) throw IOException("SETUP failed (RTSP ${setup.status})")
+        if (!setup.ok) throw IOException("rejected (RTSP ${setup.status})")
         setup.header("Session")?.substringBefore(';')?.trim()?.let { rtsp.commonHeaders["Session"] = it }
         val transport = setup.header("Transport").orEmpty()
         fun param(name: String) = Regex("$name=(\\d+)").find(transport)?.groupValues?.get(1)?.toInt() ?: 0
@@ -209,12 +279,22 @@ class AirPlayOutput(device: Device) : Output(device) {
         if (dataPort == 0) throw IOException("Receiver did not return a server port")
         dataSocket = DatagramSocket().also { it.connect(address, dataPort) }
 
+        step = "RECORD"
         val (seq, rtp) = master.nextPosition()
         val record = rtsp.request(
             "RECORD", sessionUrl,
             headers = mapOf("Range" to "npt=0-", "RTP-Info" to "seq=$seq;rtptime=$rtp"),
         )
-        if (!record.ok) throw IOException("RECORD failed (RTSP ${record.status})")
+        if (!record.ok) throw IOException("rejected (RTSP ${record.status})")
+    }
+
+    /** Features bit 26 ("Authentication_8") or a Sonos speaker means auth-setup is expected. */
+    private fun needsAuthSetup(): Boolean {
+        val f = (device.txt["features"] ?: device.txt["ft"])?.split(',')?.firstOrNull()
+            ?.trim()?.removePrefix("0x")?.removePrefix("0X")?.toLongOrNull(16) ?: 0L
+        val sonos = device.txt["manufacturer"]?.contains("Sonos", true) == true ||
+            device.model?.contains("Sonos", true) == true
+        return f and (1L shl 26) != 0L || sonos
     }
 
     // ------------------------------------------------------------------------------ streaming
