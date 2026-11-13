@@ -12,8 +12,8 @@ android {
         applicationId = "dev.soundbeam"
         minSdk = 29 // AudioPlaybackCapture requires Android 10
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.2.1"
+        versionCode = 4
+        versionName = "0.3.0"
     }
 
     // Release signing: set SOUNDBEAM_KEYSTORE (path) and SOUNDBEAM_KEYSTORE_PASSWORD.
@@ -45,6 +45,18 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            all {
+                // Render real screenshots (docs/screenshots) when run with -Pscreenshots
+                it.systemProperty("roborazzi.test.record", "true")
+                it.systemProperty("robolectric.graphicsMode", "NATIVE")
+                it.systemProperty("screenshots.dir", rootProject.file("docs/screenshots").absolutePath)
+                it.maxHeapSize = "2g"
+            }
+        }
+    }
     packaging {
         resources.excludes += setOf("META-INF/versions/9/OSGI-INF/MANIFEST.MF", "META-INF/DEPENDENCIES")
     }
@@ -63,4 +75,10 @@ dependencies {
     implementation("org.java-websocket:Java-WebSocket:1.5.7")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.36.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.36.0")
+    testImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

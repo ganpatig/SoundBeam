@@ -2,7 +2,7 @@
 
 Free, open-source Android app that streams **whatever your phone is playing** (Spotify, YouTube Music, a browser, a game…) to speakers and receivers on your Wi-Fi. No account, no ads, no subscription, no root.
 
-> **Status: alpha (v0.2).** Everything compiles and the protocol primitives are verified by unit tests (SRP-6a against pysrp, ALAC decoded bit-identically by ffmpeg, bplist/TLV8 round-trips), but most back-ends have **not yet been tried on real speakers**. Bug reports with logs are very welcome.
+> **Status: alpha (v0.3).** Everything compiles and the protocol primitives are verified by unit tests (SRP-6a against pysrp, ALAC decoded bit-identically by ffmpeg, bplist/TLV8 round-trips), but most back-ends have **not yet been tried on real speakers**. Bug reports with logs are very welcome.
 
 ## ⬇️ Download
 
@@ -14,6 +14,20 @@ On that page, under **Assets**, tap:
 * **`SoundBeam-Receiver-x.y.z.apk`** – optional, install on a **Fire TV / Android TV** to use it as a speaker.
 
 Open the downloaded file on your phone to install it (Android will ask you to allow installs from your browser or file manager the first time).
+
+## Screenshots
+
+| Pick your speakers | Playing in two rooms | Speaker settings |
+|---|---|---|
+| <img src="docs/screenshots/1-welcome.png" width="240"> | <img src="docs/screenshots/2-playing.png" width="240"> | <img src="docs/screenshots/3-speaker-settings.png" width="240"> |
+| **Sound (equalizer)** | **Extras & help** | **Dark mode** |
+| <img src="docs/screenshots/4-sound.png" width="240"> | <img src="docs/screenshots/5-more.png" width="240"> | <img src="docs/screenshots/6-dark.png" width="240"> |
+
+## Is SoundBeam for you?
+
+**Yes, if you** have AirPlay, Chromecast, Sonos, HEOS or DLNA speakers (or a smart TV / Fire TV) and an Android phone, and want to play sound from *any* app on them – including apps that can't cast by themselves – in one room or several at once. Free, no account, no ads.
+
+**Probably not, if you** only use Bluetooth speakers (Android already does that), need perfect lip-sync for video (network speakers add a short delay), or only use one app that already casts to your speaker (like Spotify Connect).
 
 ## What it does
 
@@ -62,9 +76,12 @@ APKs land in `app/build/outputs/apk/debug/` and `receiver/build/outputs/apk/debu
 
 ## Using it
 
-1. Open SoundBeam, tap **Scan**, tick one or more receivers (and/or enable **HTTP stream** / **Save to file**).
-2. Tap **Start streaming** and accept the microphone and screen-capture prompts. (Android shows these for the audio-capture API; SoundBeam records no microphone and no screen.)
-3. Play audio in any app.
+1. Open SoundBeam – it finds the speakers on your Wi-Fi automatically.
+2. Tap the speakers you want (each speaker shows up once, even if it supports several connection types).
+3. Press **Play** and accept Android's prompt (Android calls it screen recording; SoundBeam only uses the sound).
+4. Play music, podcasts or videos in any app.
+
+Each speaker card has its own volume slider. Tap **⋮** on a speaker to change how it connects or to line it up with other speakers. The **Sound** tab has an equalizer; **More** has song-title display, latency, a browser/VLC link, recording and help.
 
 ## Clean-room statement
 

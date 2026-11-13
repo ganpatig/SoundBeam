@@ -15,6 +15,7 @@ import dev.soundbeam.core.Device
 import dev.soundbeam.core.Discovery
 import dev.soundbeam.core.NowPlaying
 import dev.soundbeam.core.OutputState
+import dev.soundbeam.core.SpeakerGroup
 import dev.soundbeam.core.StreamSession
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +39,12 @@ object Engine {
     val volumes = MutableStateFlow<Map<String, Int>>(emptyMap())
     val delays = MutableStateFlow<Map<String, Int>>(emptyMap())
     val outputStates = MutableStateFlow<Map<String, OutputState>>(emptyMap())
+    /** Connection type the user picked per speaker (group key -> device id). */
+    val via = MutableStateFlow<Map<String, String>>(emptyMap())
+
+    // first-run hints
+    val welcomeSeen = MutableStateFlow(true)
+    val captureExplained = MutableStateFlow(true)
 
     // stream
     val running = MutableStateFlow(false)
@@ -72,6 +79,12 @@ object Engine {
         selected.value = prefs.getStringSet("selected", emptySet())!!.toSet()
         volumes.value = readIntMap("volumes")
         delays.value = readIntMap("delays")
+        via.value = runCatching {
+            val j = JSONObject(prefs.getString("via", "{}")!!)
+            j.keys().asSequence().associateWith { j.getString(it) }
+        }.getOrDefault(emptyMap())
+        welcomeSeen.value = prefs.getBoolean("welcomeSeen", false)
+        captureExplained.value = prefs.getBoolean("captureExplained", false)
         prefs.getString("eq", null)?.split(",")?.mapNotNull { it.toFloatOrNull() }
             ?.takeIf { it.size == 10 }?.let { setEq(it) }
     }
@@ -109,11 +122,41 @@ object Engine {
 
     // ------------------------------------------------------------------------------ selection
 
-    fun toggleSelected(device: Device) {
-        val now = selected.value.let { if (device.id in it) it - device.id else it + device.id }
+    fun toggleSelected(device: Device) = setSelected(device, device.id !in selected.value)
+
+    fun setSelected(device: Device, on: Boolean) {
+        if ((device.id in selected.value) == on) return
+        val now = if (on) selected.value + device.id else selected.value - device.id
         selected.value = now
         prefs.edit().putStringSet("selected", now).apply()
-        session?.let { s -> if (device.id in now) s.addOutput(device) else s.removeOutput(device.id) }
+        session?.let { s -> if (on) s.addOutput(device) else s.removeOutput(device.id) }
+    }
+
+    /** Switches a whole speaker on or off, using its chosen connection type. */
+    fun toggleSpeaker(g: SpeakerGroup) {
+        val on = g.options.filter { it.id in selected.value }
+        if (on.isNotEmpty()) on.forEach { setSelected(it, false) } else setSelected(g.chosen, true)
+    }
+
+    /** Changes how a speaker is connected; if it is playing, it reconnects the new way. */
+    fun chooseConnection(g: SpeakerGroup, device: Device) {
+        via.value = via.value + (g.key to device.id)
+        prefs.edit().putString("via", JSONObject(via.value as Map<*, *>).toString()).apply()
+        val wasOn = g.options.any { it.id in selected.value }
+        if (wasOn) {
+            g.options.filter { it.id in selected.value && it.id != device.id }.forEach { setSelected(it, false) }
+            setSelected(device, true)
+        }
+    }
+
+    fun markWelcomeSeen() {
+        welcomeSeen.value = true
+        prefs.edit().putBoolean("welcomeSeen", true).apply()
+    }
+
+    fun markCaptureExplained() {
+        captureExplained.value = true
+        prefs.edit().putBoolean("captureExplained", true).apply()
     }
 
     fun volumeFor(id: String) = volumes.value[id] ?: 50
