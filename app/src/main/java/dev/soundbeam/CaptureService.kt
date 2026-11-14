@@ -69,6 +69,7 @@ class CaptureService : Service() {
         try {
             val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             val proj = mpm.getMediaProjection(code, data)
+                ?: throw IllegalStateException("Android did not grant audio capture")
             proj.registerCallback(object : MediaProjection.Callback() {
                 override fun onStop() {
                     shutdown()

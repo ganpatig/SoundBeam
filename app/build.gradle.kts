@@ -6,14 +6,14 @@ plugins {
 
 android {
     namespace = "dev.soundbeam"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "dev.soundbeam"
         minSdk = 29 // AudioPlaybackCapture requires Android 10
-        targetSdk = 35
-        versionCode = 5
-        versionName = "0.4.0"
+        targetSdk = 36
+        versionCode = 6
+        versionName = "0.4.1"
     }
 
     // Release signing: set SOUNDBEAM_KEYSTORE (path) and SOUNDBEAM_KEYSTORE_PASSWORD.
@@ -52,7 +52,13 @@ android {
                 // Render real screenshots (docs/screenshots) when run with -Pscreenshots
                 it.systemProperty("roborazzi.test.record", "true")
                 it.systemProperty("robolectric.graphicsMode", "NATIVE")
-                it.systemProperty("screenshots.dir", rootProject.file("docs/screenshots").absolutePath)
+                // -Pplay renders Google Play-sized (2:1) screenshots into docs/play/screenshots
+                val play = project.findProperty("play") != null
+                it.systemProperty(
+                    "screenshots.dir",
+                    rootProject.file(if (play) "docs/play/screenshots" else "docs/screenshots").absolutePath,
+                )
+                if (play) it.systemProperty("screenshots.qualifiers", "w400dp-h800dp-xxhdpi")
                 it.maxHeapSize = "2g"
             }
         }

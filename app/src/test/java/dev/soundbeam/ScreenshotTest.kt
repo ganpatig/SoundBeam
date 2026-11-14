@@ -26,6 +26,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.ByteArrayOutputStream
@@ -70,6 +71,7 @@ class ScreenshotTest {
     }
 
     private fun shoot(name: String, tab: Tab = Tab.SPEAKERS, dark: Boolean = false, after: () -> Unit = {}) {
+        System.getProperty("screenshots.qualifiers")?.takeIf { it.isNotBlank() }?.let { RuntimeEnvironment.setQualifiers(it) }
         compose.setContent { SoundBeamTheme(dark = dark) { SoundBeamApp(noActions, initialTab = tab) } }
         compose.waitForIdle()
         after()
