@@ -164,4 +164,16 @@ class ScreenshotTest {
         dev.soundbeam.live.LiveReceiverState.listening.value = false
         dev.soundbeam.live.LiveReceiverState.sender.value = null
     }
+
+    @Test
+    fun s9_autoSync() {
+        Engine.selected.value = setOf(livingRoom.id, kitchenAp.id)
+        Engine.running.value = true
+        dev.soundbeam.sync.AutoSync.state.value = dev.soundbeam.sync.SyncState.Done(
+            listOf("Living Room: held back 2.10 s", "Upstairs TV: held back 0.80 s", "Kitchen: no delay (slowest)"),
+            emptyList(),
+        )
+        shoot("9-auto-sync")
+        dev.soundbeam.sync.AutoSync.state.value = dev.soundbeam.sync.SyncState.Idle
+    }
 }

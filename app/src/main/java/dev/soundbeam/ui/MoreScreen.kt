@@ -170,8 +170,8 @@ fun MoreScreen(actions: AppActions) {
             Faq(
                 "My speakers are out of sync",
                 "AirPlay speakers stay in sync with each other automatically. When you mix types (say AirPlay " +
-                    "and Chromecast), open the speaker that plays first (⋮) and move \"Line up with other speakers\" " +
-                    "until they sound together.",
+                    "and Sonos), tap \"Sync now\" on the Speakers tab while playing: SoundBeam plays a few chirps, " +
+                    "listens with the microphone and lines everything up. You can still fine-tune a speaker under ⋮.",
             )
             Faq(
                 "One app stays silent",

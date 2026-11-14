@@ -106,6 +106,7 @@ fun SpeakersScreen(actions: AppActions) {
         }
         if (!welcomeSeen) item { WelcomeCard() }
         if (running) item { NowPlayingCard(actions) }
+        if (running) item { SyncCard() }
         if (groups.isEmpty()) {
             item { EmptyState(scanning) }
         } else {
@@ -426,7 +427,7 @@ private fun SpeakerSheet(g: SpeakerGroup, onDismiss: () -> Unit) {
                     value = delay,
                     onValueChange = { delay = (it / 50).toInt() * 50f },
                     onValueChangeFinished = { Engine.setDelay(current.id, delay.toInt()) },
-                    valueRange = 0f..5000f,
+                    valueRange = 0f..8000f,
                     modifier = Modifier.weight(1f),
                 )
                 Text(

@@ -52,6 +52,7 @@ Two people, one movie, each with their own headphones – on a plane, train or s
 | **DLNA / UPnP** renderers (WAV) | ✅ |
 | **AriaCast** (Music Assistant AriaCast Receiver, AriaCast servers) | ✅ written per the published spec |
 | **Fire TV / Android TV** via the bundled **SoundBeam Receiver** app (AriaCast receiver, TV launcher, starts on boot) | ✅ written, not yet tried on hardware |
+| **Automatic sync**: one tap plays test chirps on each speaker, listens with the phone microphone and lines up every speaker type | ✅ |
 | Add/remove receivers while playing, per-receiver volume/mute and sync delay, AirPlay latency setting | ✅ |
 | Cover art & metadata (notification access): AirPlay DMAP/artwork/progress, Cast/DLNA at start, Sonos/VLC via ICY, AriaCast live | ✅ |
 | HTTP stream (`/stream.wav`, `/stream.aac`), save to WAV, 10-band EQ | ✅ |

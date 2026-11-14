@@ -130,6 +130,10 @@ class StreamSession(private val ctx: Context) : StreamEnv {
 
     /** Called on the capture thread for every block of equalised PCM. */
     fun onPcm(pcm: ShortArray, len: Int, bytes: ByteArray) {
+        if (dev.soundbeam.sync.AutoSync.inject(pcm, len)) {
+            // test signal replaced the music: refresh the little-endian byte copy
+            java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(pcm, 0, len)
+        }
         val byteLen = len * 2
         http.writeWav(bytes, byteLen)
         aac?.let { runCatching { it.encode(bytes, byteLen) } }
