@@ -9,7 +9,8 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "dev.soundbeam"
+        // -PplayAppId=... overrides the ID for a Play listing created with a different package name
+        applicationId = (project.findProperty("playAppId") as String?) ?: "dev.soundbeam"
         minSdk = 29 // AudioPlaybackCapture requires Android 10
         targetSdk = 36
         versionCode = 6
