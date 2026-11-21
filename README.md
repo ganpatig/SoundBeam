@@ -1,5 +1,7 @@
 # SoundBeam
 
+<p align="center"><img src="docs/demo.gif" width="320" alt="SoundBeam demo"></p>
+
 Free, open-source Android app that streams **whatever your phone is playing** (Spotify, YouTube Music, a browser, a game…) to speakers and receivers on your Wi-Fi. No account, no ads, no subscription, no root.
 
 > **Status: alpha (v0.4).** Everything compiles and the protocol primitives are verified by unit tests (SRP-6a against pysrp, ALAC decoded bit-identically by ffmpeg, bplist/TLV8 round-trips), but most back-ends have **not yet been tried on real speakers**. Bug reports with logs are very welcome.
